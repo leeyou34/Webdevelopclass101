@@ -16,6 +16,8 @@ configurations {
 
 repositories {
 	mavenCentral()
+	maven { url 'https://repo.spring.io/milestone'}
+	maven { url 'https://repo.spring.io/snapshot'}
 }
 
 dependencies {
@@ -23,8 +25,12 @@ dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-web'
 	compileOnly 'org.projectlombok:lombok'
 	runtimeOnly 'com.h2database:h2'
-	annotationProcessor 'org.projectlombok:lombok'
+	annotationProcessor 'org.projectlombok:lombok'// in order to save the development time, developer uses lombok library. this adds the code when annotation added.
 	testImplementation 'org.springframework.boot:spring-boot-starter-test'
+	//below is google guava's library and it is added on dependency.
+	// https://mvnrepository.com/artifact/com.google.guava/guava
+	implementation group: 'com.google.guava', name: 'guava', version: '30.1.1-jre'
+	
 }
 
 test {
