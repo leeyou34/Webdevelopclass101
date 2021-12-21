@@ -1,4 +1,4 @@
-package com.example.demo;
+package com.example.practice;
 
 import java.sql.Connection;
 import java.sql.DriverManager;
@@ -12,26 +12,21 @@ import javax.security.auth.message.callback.PrivateKeyCallback.Request;
 
 import org.h2.util.json.JSONArray;
 import org.h2.util.json.JSONObject;
-
-public class WebServiceMethodSplit {
+// this is Layerless webservice... 
+public class WebServiceLayerless {
 	
 	public String getTodo(Request request) {
-		//request validation
+		// 요청 검사
 		if(request.userId == null) {
 			JSONObject json = new JSONObject();
 			json.put("error", "missing user id");
 			return json.toString();
 		}
-		List<Todo> todos = this.getTodoFromPersistence(request);
 		
-		return this.getResponse(todos);
-	}
-	
-	private List<Todo> getTodoFromPersistence(Request request) {
 		List<Todo> todos = new ArrayList<>();
 		
-		//데이터베이스 콜
-		String sqlSelectAllPersons = "SELECT * FROM TOdo where USER_ID = " + request.getUserId();
+		// 데이터베이스 콜
+		String sqlSelectAllPersons = "Select * From Todo where User_ID = " + request.getUserId();
 		String connectionUrl = "jdbc:mysql://mydb:3306/todo";
 		
 		try (Connection conn = DriverManager.getConnection(connectionUrl, "username", "password");
@@ -39,18 +34,15 @@ public class WebServiceMethodSplit {
 				ResultSet rs = ps.executeQuery()) {
 			while (rs.next()) {
 				long id = rs.getLong("ID");
-				String title = rs.get String("TITLE");
+				String title = rs.getString("TITLE");
 				Boolean isDone = rs.getBoolean("IS_DONE");
 				
 				todos.add(new Todo(id, title, isDone));
-			}
-		} catch (SQLException e) {
+			}		
+		}	catch (SQLException e) {
 			//handle the exception
 		}
-		return todos;
-	}
-	
-	private String getResponse(List<Todo> todos) {
+		
 		//응답생성
 		JSONObject json = new JSONObject();
 		JSONArray array = new JSONArray();
@@ -65,6 +57,7 @@ public class WebServiceMethodSplit {
 		json.put("data", array);
 		return json.toString();
 	}
+
 
 
 }
