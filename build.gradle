@@ -25,6 +25,7 @@ dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-web'
 	compileOnly 'org.projectlombok:lombok'
 	runtimeOnly 'com.h2database:h2'
+	runtimeOnly 'mysql:mysql-connector-java' // Dec 23rd page 119 쪽 추가함...
 	annotationProcessor 'org.projectlombok:lombok'// in order to save the development time, developer uses lombok library. this adds the code when annotation added.
 	testImplementation 'org.springframework.boot:spring-boot-starter-test'
 	//below is google guava's library and it is added on dependency.
