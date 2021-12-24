@@ -27,7 +27,7 @@ public class TodoService {
 				//"Test Service"; 이 코드는 12월 24일 현재 주석처리 
 	}
 	//실습코드 2-31. create method
-	public List<TodoEntity> create(final TodoEntity entity) {
+/*	public List<TodoEntity> create(final TodoEntity entity) {
 		//Validations
 		if(entity ==null) {
 			log.warn("Entity cannot be null.");
@@ -44,5 +44,29 @@ public class TodoService {
 		
 		return repository.findByUserId(entity.getUserId());
 	}
+*/	
+	//실스코드 2-32.
+	public List<TodoEntity> create(final TodoEntity entity) {
+		//Validation
+		validate(entity);
+		
+		repository.save(entity);
+		
+		log.info("Entity Id : {} is saved.", entity.getId());
+		
+		return repository.findByUserId(entity.getUserId());
+		
+	}
 	
+	//refactoring method
+	private void validate(final TodoEntity entity) {
+		if(entity == null ) {
+			log.warn ("Entity cannot be null.");
+			throw new RuntimeException("Entity cannot be null.");
+		}
+		if(entity.getUserId()==null) {
+			log.warn("Unknown user.");
+			throw new RuntimeException("Unknown user.");
+		}
+	}
 }
