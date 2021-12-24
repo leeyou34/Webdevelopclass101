@@ -1,5 +1,9 @@
 package com.example.demo.controller;
 
+import java.util.ArrayList;
+import java.util.List;
+
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -7,15 +11,13 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.example.demo.dto.TestRequestBodyDTO;
 import com.example.demo.dto.ResponseDTO;
-import org.springframework.http.ResponseEntity;
+import com.example.demo.dto.TestRequestBodyDTO;
 
-import java.util.ArrayList;
-import java.util.List;
+import lombok.extern.slf4j.Slf4j;
 
 //실습코드 2-11. TestController.java 클래스 전체
-
+@Slf4j // 실습코드 2-30. Simple Logging Facade for Java. 
 @RestController
 @RequestMapping("test") // 리소스
 public class TestController {

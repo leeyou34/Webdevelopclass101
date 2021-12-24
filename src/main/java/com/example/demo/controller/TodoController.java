@@ -10,9 +10,11 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.example.demo.dto.ResponseDTO;
+import com.example.demo.service.TodoService;
 
-import service.TodoService;
+import lombok.extern.slf4j.Slf4j;
 // 실습코드 2-21. 12.23.2021
+@Slf4j // 실습코드 2-30. Simple Logging Facade for Java. 
 @RestController
 @RequestMapping("todo")
 public class TodoController {

@@ -6,6 +6,7 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 /*
  * Author: Thomas Lee
@@ -17,7 +18,7 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @AllArgsConstructor 
 @Data 
-
+@Slf4j // 실습코드 2-30. Simple Logging Facade for Java. 
 /* @Builder, this is the one of the design pattern(Refactoring Guru). 
 *if a developer uses the @Builder Annotation, builder class is no longer in needed.
 */
