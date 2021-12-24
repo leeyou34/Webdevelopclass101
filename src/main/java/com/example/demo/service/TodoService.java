@@ -1,5 +1,7 @@
 package com.example.demo.service;
 
+import java.util.List;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -24,4 +26,23 @@ public class TodoService {
 		return savedEntity.getTitle();
 				//"Test Service"; 이 코드는 12월 24일 현재 주석처리 
 	}
+	//실습코드 2-31. create method
+	public List<TodoEntity> create(final TodoEntity entity) {
+		//Validations
+		if(entity ==null) {
+			log.warn("Entity cannot be null.");
+			throw new RuntimeException("Entity cannot be null.");
+		}
+		if(entity.getUserId() == null) {
+			log.warn("Unknown user.");
+			throw new RuntimeException("Unknown user.");
+		}
+		
+		repository.save(entity);
+		
+		log.info("Entity Id :  {} is saved. ", entity.getId());
+		
+		return repository.findByUserId(entity.getUserId());
+	}
+	
 }
