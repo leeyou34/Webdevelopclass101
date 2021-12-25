@@ -36,5 +36,17 @@ public class TodoDTO {
 		this.title = entity.getTitle();
 		this.done = entity.isDone();
 	}
+	/*
+	 * 실습코드 2-33. TodoDTO, toEntity 메서드 작성
+	 * 컨트롤러 구현. Http 응답을 반환할 때 비지니스 로직을 캡슐화하거나 추가적인 정보를 함께 반환 하려고 DTO 사용. 12.25.2021
+	 */
+	
+	public static TodoEntity toEntity(final TodoDTO dto) {
+		return TodoEntity.builder()
+				.id(dto.getId())
+				.title(dto.getTitle())
+				.done(dto.isDone())
+				.build();
+	}
 }
 

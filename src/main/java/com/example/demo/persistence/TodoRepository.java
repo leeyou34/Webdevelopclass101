@@ -12,6 +12,6 @@ import com.example.demo.model.TodoEntity;
 
 // 실습코드 2-27 TodoRepository.java
 @Repository
-public interface TodoRepository extends JpaRepository<TodoEntity, Long>{ //  <TodoEntity, Long> <TodoEntity, String> 
+public interface TodoRepository extends JpaRepository<TodoEntity, String>{ //  <TodoEntity, Long> <TodoEntity, String> 
 	List<TodoEntity> findByUserId(String userId);
 }

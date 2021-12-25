@@ -5,7 +5,7 @@ import java.util.List;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
 
-import com.example.demo.model.TodoEntity;
+import com.example.demo.model.//TodoEntity; 여긴 예제 항목입니다.
 //예제 2-48. @Query를 이용한 쿼리 메서드 작성..
 @Repository
 public interface TodoRepository extends JpaRepository<TodoEntity, String>{
