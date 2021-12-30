@@ -7,8 +7,8 @@ import com.example.demo.model.UserEntity;
 /*===============================================================
 *Dec 30th 2021, 
 *Authenticated Backend implementation.
-*UserRepository.java
-*UserEntity를 사용하기 위해서 해당 interface가 필요하다.
+*UserRepository.java ; UserEntity를 사용하기 위해서 해당 interface가 필요하다.
+*실습코드 4-2. UserRepository.java
 *================================================================
 */
 
