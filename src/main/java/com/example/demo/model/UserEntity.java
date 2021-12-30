@@ -18,7 +18,7 @@ import lombok.NoArgsConstructor;
 *Dec 30th 2021, 
 *Authenticated Backend implementation.
 *UserEntity.java
-*
+*실습코드 4-1. 사용자 엔티티 생성.
 *================================================================
 */
 
