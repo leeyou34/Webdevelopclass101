@@ -1,8 +1,14 @@
-<p style="align:center"> 
-<h1 style="align:center">Todo Application<h1>
+<p align="center"> 
+<h1 align="center">Todo Application<h1>
 </p>
 
-
+<p>
+  
+</p>
+  
+  
+  
+  
 # Webdevelopclass101
 this repository is based on React.js, Springboot and AWS
 
