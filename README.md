@@ -1,8 +1,8 @@
 <p align="center"> 
-<h1 align="center">Todo Application<h1>
+<h1 align="center">Todo Application</h1>
 </p>
 
-<p>
+
 ###개요(Abstract)
 ```
   개인용 할일 목록 리스트 앱플리케이션 구축 (Personal Todo List Application)
@@ -27,5 +27,3 @@
 ```
 업데이트 예정.
 ```
-</p>
-  
