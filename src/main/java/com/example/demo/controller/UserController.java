@@ -10,6 +10,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.example.demo.dto.ResponseDTO;
 import com.example.demo.dto.UserDTO;
 import com.example.demo.model.UserEntity;
+import com.example.demo.security.TokenProvider;
 import com.example.demo.service.UserService;
 
 import lombok.extern.slf4j.Slf4j;
@@ -30,6 +31,11 @@ public class UserController {
 
 	@Autowired
 	private UserService userService;
+
+	//Jan 2nd 2021, 실습코드 4-8. UserController의 /signin에서 토큰 생성 및 반환
+	@Autowired
+	private TokenProvider tokenProvider;
+	// 토큰 선언 끝.
 	
 	@PostMapping("/signup")
 	public ResponseEntity<?> registerUser(@RequestBody UserDTO userDTO) {
@@ -57,12 +63,14 @@ public class UserController {
 					.body(responseDTO);
 		}
 	}
+	
 	@PostMapping("/signin")
 	public ResponseEntity<?> authenticate(@RequestBody UserDTO userDTO) {
 		UserEntity user = userService.getByCredentials(
 				userDTO.getEmail(),
 				userDTO.getPassword());
 		if(user != null) {
+			// 토큰 생성.  Jan 1st 2022, 실습코드 4-8. UserController의 /signin에서 토큰 생성 및 반환
 			final UserDTO responseUserDTO = UserDTO.builder()
 					.email(user.getUsername())
 					.id(user.getId())
@@ -76,5 +84,5 @@ public class UserController {
 					.badRequest()
 					.body(responseDTO);
 		}				
-	}
+	} 
 }
