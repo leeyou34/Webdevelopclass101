@@ -5,12 +5,13 @@ import java.time.temporal.ChronoUnit;
 import java.util.Date;
 
 import org.springframework.stereotype.Service;
+
 import com.example.demo.model.UserEntity;
-import lombok.extern.slf4j.Slf4j;
 
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;
+import lombok.extern.slf4j.Slf4j;
 
 /*===============================================================
 *Dec 30th 2021, 
@@ -38,7 +39,7 @@ public class TokenProvider {
 		 { //payload
 		  "sub":"40288093784915d201784916a40c0001",
 		  "iss": "demo app",
-		  "iat": 1595733657,
+		  "iat":1595733657,
 		  "exp":1596597657
 		  }.
 		  // SECRET_KEY를 이용해 서명한 부분
