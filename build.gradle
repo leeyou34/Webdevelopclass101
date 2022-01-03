@@ -36,11 +36,11 @@ dependencies {
 	//compile group: 'io.jsonwebtoken', name: 'jjwt', version: '0.9.1' // Jan 2nd 2022년 작동이 아니되 주석처리.
 	// Jan 3rd 2022. 실습코드 4-7을 위한 디펜던시 수정.
 	// 상기 compile group: 'io.jsonwebtoen' 의 디펜던시는 gradle version 7 이상에선 적용되지 아니됨으로.
-	// 하기의 implemation, runtimeOnly 디펜던시 최신 버젼으로 디펜던시 추가함.
+	// 하기의 implemation, runtimeOnly 디펜던시 최신 버젼으로 디펜던시 추가함. 참고 링크는. (https://github.com/wkdalsgh192/jjwt/tree/update-readme#install-jdk-gradle)
     implementation 'io.jsonwebtoken:jjwt-api:0.11.2'
     runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.11.2',
             // Uncomment the next line if you want to use RSASSA-PSS (PS256, PS384, PS512) algorithms:
-            //'org.bouncycastle:bcprov-jdk15on:1.60',
+            'org.bouncycastle:bcprov-jdk15on:1.60',
             'io.jsonwebtoken:jjwt-jackson:0.11.2' // or 'io.jsonwebtoken:jjwt-gson:0.11.2' for gson
 	// jjwt 라이브러리 추가 완료.
 }

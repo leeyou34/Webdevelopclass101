@@ -63,8 +63,9 @@ public class TokenProvider {
 		// 즉, 헤더와 페이로드를 setSigningKey로 넘어온 시크릿을 이용 해 서명 후, token의 서명 과 비교.
 		// 위조되지 않았다면 페이로드(Claims) 리턴
 		// 그 중 우리는 userId가 필요하므로 getBody를 부른다.
-		Claims claims = Jwts.parser()
+		Claims claims = Jwts.parserBuilder() //parser 뒤에 builder가 빠져있었다...
 						.setSigningKey(SECRET_KEY)
+						.build()
 						.parseClaimsJws(token)
 						.getBody();
 		

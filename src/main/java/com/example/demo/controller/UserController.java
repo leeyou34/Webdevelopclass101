@@ -71,9 +71,11 @@ public class UserController {
 				userDTO.getPassword());
 		if(user != null) {
 			// 토큰 생성.  Jan 1st 2022, 실습코드 4-8. UserController의 /signin에서 토큰 생성 및 반환
+			final String token = tokenProvider.create(user); // jan 3rd 2022, this code line was added.
 			final UserDTO responseUserDTO = UserDTO.builder()
 					.email(user.getUsername())
 					.id(user.getId())
+					.token(token) // jan 3rd 2022, this code line was added. 
 					.build();
 			return ResponseEntity.ok().body(responseUserDTO);
 		} else {
