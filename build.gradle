@@ -23,6 +23,7 @@ repositories {
 dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
 	implementation 'org.springframework.boot:spring-boot-starter-web'
+	implementation 'org.springframework.boot:spring-boot-starter-security' // 실습코드 4-9 Spring security dependency.
 	compileOnly 'org.projectlombok:lombok'
 	runtimeOnly 'com.h2database:h2' //DB에 h2를 쓸 것이면 해당 부분 사용함.
 	runtimeOnly 'mysql:mysql-connector-java' // Dec 23rd page 119 쪽 추가함...
