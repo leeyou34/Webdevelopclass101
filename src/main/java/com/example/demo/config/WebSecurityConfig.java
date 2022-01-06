@@ -1,15 +1,23 @@
 package com.example.demo.config;
 
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.web.filter.CorsFilter;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configuration.WebSecurityConfigurerAdapter;
 import org.springframework.security.config.http.SessionCreationPolicy;
-import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.web.filter.CorsFilter;
 
 import com.example.demo.security.JwtAuthenticationFilter;
+
 import lombok.extern.slf4j.Slf4j;
+
+/*==============================================================
+ * Jan 6rd 2022, 실습코드 4-11. WebSecurityConfig
+ * author: thomas lee
+ * WebSecurityConfig내에 발생한 오류들은 buildGradle에서 security 버젼을 잡아주니
+ * import시 문제없이 각자 위치를 잘 잡아 오류를 잡음.
+ ==============================================================*/
+
 
 @EnableWebSecurity
 @Slf4j
@@ -28,7 +36,7 @@ public class WebSecurityConfig extends WebSecurityConfigurerAdapter {
 		.httpBasic() // token을 사용하지 않으므로 disable
 			.disable()
 		.sessionManagement() // session 기반이 아님을 선언
-			.sessinoCreationPolicy(SessionCreationPolicy.STATELESS)
+			.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
 		.and()
 		.authorizeRequests() // /와 /auth/** 경로는 인증 안해도 됨.
 			.antMatchers("/", "/auth/**").permitAll()
