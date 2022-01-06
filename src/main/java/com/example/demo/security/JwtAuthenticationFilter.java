@@ -8,6 +8,12 @@ import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.authentication.AbstractAuthenticationToken;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.authority.AuthorityUtils;
+import org.springframework.security.core.context.SecurityContext;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 import org.springframework.web.filter.OncePerRequestFilter;
@@ -16,38 +22,41 @@ import lombok.extern.slf4j.Slf4j;
 
 /*==============================================================
  * Jan 3rd 2022, 실습코드 4-10. JwtAuthenticationFilter
- * 
+ * author: thomas lee
+ * JwtAuthenticationFilter내에 발생한 오류들은 buildGradle에서 security 버젼을 잡아주니
+ * import시 문제없이 각자 위치를 잘 잡아 오류를 잡음.
  ==============================================================*/
 
 @Slf4j
 @Component
-public class JwtAuthenticationFilter extends OncePerRequestFilter{
+public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
 	@Autowired
 	private TokenProvider tokenProvider;
 	
 	@Override
-	protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain ) 
-					throws ServletException, IOException {
+	protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain) throws ServletException, IOException {
 		try {
 			//요청해서 토큰 가져오기
 			String token = parseBearerToken(request);
 			log.info("Filter is running...");
+			
 			// 토큰 검사하기. JWT이므로 인가 서버에 요청하지 않고도 검증 가능.
 			if (token != null && !token.equalsIgnoreCase("null")) {
 				//userId 가져오기. 위조된 경우 예외 처리된다.
 				String userId = tokenProvider.validateAndGetUserId(token);
 				log.info("Authenticated user ID: " + userId);
 				// 인증 완료. SecurityContextHOlder에 등록해야 인증된 사용자라고 생각한다.
-				AbstractAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
-						userId, // 인증된 사용자의 정보. 문자열이 아니어도 아무것이나 넣을 수 있다. 보통 UserDetails라는 오브젝트를 넣는데 우리는 넣지 않았다.
-						null, //
-						AuthorityUtils.NO_AUTHORITIES
-						);
-				authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
-				SecurityContext securityContext = SecurityContextHolder.createEmptyContext();
-				securityContext.setAuthentication(authentication);
-				SecurityContextHolder.setContext(securityContext);
+                AbstractAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
+                        userId, // 인증된 사용자의 정보. 문자열이 아니어도 아무것이나 넣을 수 있다. 보통 UserDetails라는 Object를 넣는데, 우리는 넣지 않았다. (이게 @AuthenticationPrincipal String userId)
+                        // String으로 했기 때문에 @AuthenticationPrincipal의 type이 String인것
+                        null,
+                        AuthorityUtils.NO_AUTHORITIES
+                );
+                authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+                SecurityContext securityContext = SecurityContextHolder.createEmptyContext();
+                securityContext.setAuthentication(authentication);
+                SecurityContextHolder.setContext(securityContext);
 			}
 		} catch (Exception ex) {
 			logger.error("Could not set user authentication in security context", ex);
