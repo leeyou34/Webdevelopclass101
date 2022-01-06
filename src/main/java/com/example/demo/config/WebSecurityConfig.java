@@ -39,7 +39,7 @@ public class WebSecurityConfig extends WebSecurityConfigurerAdapter {
 			.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
 		.and()
 		.authorizeRequests() // /와 /auth/** 경로는 인증 안해도 됨.
-			.antMatchers("/", "/auth/**").permitAll()
+			.antMatchers("/", "/auth/**", "/error").permitAll() // Jan 6th 2022, "/error" was added since this springboot version is 2.6.2 veriosn. i used the reference from https://github.com/spring-projects/spring-boot/issues/28953 
 		.anyRequest() // /와 /auth/** 이외의 모든 경로는 인증 해야 됨.
 			.authenticated();
 		// filter 등록

@@ -1,7 +1,7 @@
 package com.example.demo.security;
 
 import java.nio.charset.StandardCharsets;
-import java.security.Key;
+//import java.security.Key;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Date;
@@ -98,7 +98,7 @@ public class TokenProvider {
 		// 위조되지 않았다면 페이로드(Claims) 리턴
 		// 그 중 우리는 userId가 필요하므로 getBody를 부른다.
 		Claims claims = Jwts.parserBuilder() //parser는 deprecated가 되어서 사용하려면 뒤에 builder가 필요하다....
-						.setSigningKey(SECRET_KEY)
+						.setSigningKey(Keys.hmacShaKeyFor(SECRET_KEY.getBytes(StandardCharsets.UTF_8))) // Jan 6th 2022, setSigningKey내에 SECRET_KEY를 Keys.hmacShaKeyFor(SECRET_KEY.getBytes(StandardCharsets.UTF_8))로 변경
 						.build()
 						.parseClaimsJws(token)
 						.getBody();
