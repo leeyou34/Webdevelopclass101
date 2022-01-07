@@ -2,6 +2,8 @@ package com.example.demo.controller;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -37,6 +39,10 @@ public class UserController {
 	private TokenProvider tokenProvider;
 	// 토큰 선언 끝.
 	
+	//Jan 7th 2022, 실습코드 4-14. UserController 수정
+	// Bean으로 작성해도 됨
+	private PasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
+	
 	@PostMapping("/signup")
 	public ResponseEntity<?> registerUser(@RequestBody UserDTO userDTO) {
 		try {
@@ -44,7 +50,7 @@ public class UserController {
 			UserEntity user = UserEntity.builder()
 					.email(userDTO.getEmail())
 					.username(userDTO.getUsername())
-					.password(userDTO.getPassword())
+					.password(passwordEncoder.encode(userDTO.getPassword())) // Jan 7th 2022, 회원가입 시 유저 패스워드 암호화부분 누락되어 추가함.
 					.build();
 					// Thomas's personal code... below four system.out.println codes are stated to check if data is saved.."
 					System.out.println("======================================================");
