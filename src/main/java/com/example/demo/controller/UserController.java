@@ -110,7 +110,8 @@ public class UserController {
 	public ResponseEntity<?> authenticate(@RequestBody UserDTO userDTO) {
 		UserEntity user = userService.getByCredentials(
 				userDTO.getEmail(),
-				userDTO.getPassword());
+				userDTO.getPassword(),
+				passwordEncoder);
 					System.out.println("======================================================");
 					System.out.println("1. ResponseEntity<?> authenticate(@RequestBody UserDTO userDTO was called ==========");
 					System.out.println("2. UserEntity user was called ==========");
@@ -154,8 +155,6 @@ public class UserController {
 					System.out.println("2. ResponseDTO responseDTO was called ==========");
 					System.out.println("3. There is error on ResponseDTO.builder(). the login failed. ==========");
 					System.out.println("======================================================");
-
-			
 			return ResponseEntity
 					.badRequest()
 					.body(responseDTO);
