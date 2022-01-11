@@ -132,6 +132,7 @@ public class UserController {
 					System.out.println("======================================================");
 			final UserDTO responseUserDTO = UserDTO.builder()
 					.email(user.getEmail()) // there was typo... so this line was replaced from getUsername to getEmail https://github.com/fsoftwareengineer/todo-application/discussions/34
+					.username(user.getUsername()) // Jan 11th 2022, thomas added
 					.id(user.getId())
 					.token(token) // jan 3rd 2022, this code line was added. 
 					.build();
@@ -142,8 +143,9 @@ public class UserController {
 					System.out.println("4. final UserDTO responseUserDTO now initiate reading ==========");
 					System.out.println("5. UserDTO.email(user.getEmail()) ==========" + user.getEmail());
 					System.out.println("6. UserDTO.id(user.getId()) ==========" + user.getId());
-					System.out.println("7. UserDTO.token(token) ==========" + token);
-					System.out.println("8. final UserDTO responseUserDTO has finished the reading==========");
+					System.out.println("7. UserDTO username(user.username()" + user.getUsername());
+					System.out.println("8. UserDTO.token(token) ==========" + token);
+					System.out.println("9. final UserDTO responseUserDTO has finished the reading==========");
 					System.out.println("======================================================");
 			return ResponseEntity.ok().body(responseUserDTO);
 		} else {
