@@ -26,7 +26,7 @@ public class UserService {
 	
 	public UserEntity create(final UserEntity userEntity) {
 		if(userEntity == null || userEntity.getEmail() == null ) {
-			throw new RuntimeException("INvalid arguments");
+			throw new RuntimeException("Invalid arguments");
 		}
 		final String email = userEntity.getEmail();
 		if(userRepository.existsByEmail(email)) {
@@ -45,8 +45,8 @@ public class UserService {
 	===============================================================*/
 	
 	public UserEntity getByCredentials(final String email, final String password // Jan 7th 2022, 실습코드 4-13. 패스워드 암호화 시작  
-			, final PasswordEncoder encoder // this line is added.
-			) {
+			, final PasswordEncoder encoder)// this line is added.
+			 {
 			//return userRepository.findByEmailAndPassword(email, password); // 실습코드4-13을 위해 주석처리
 			final UserEntity originalUser = userRepository.findByEmail(email);
 			

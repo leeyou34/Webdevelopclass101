@@ -120,7 +120,6 @@ public class UserController {
 					System.out.println("5. UserDTO.getPassword was read ==========" + userDTO.getPassword());
 					System.out.println("6. UserEntity user has finished the reading==========");
 					System.out.println("======================================================");
-
 		if(user != null) {
 			// 토큰 생성.  Jan 1st 2022, 실습코드 4-8. UserController의 /signin에서 토큰 생성 및 반환
 			final String token = tokenProvider.create(user); // jan 3rd 2022, this code line was added.
