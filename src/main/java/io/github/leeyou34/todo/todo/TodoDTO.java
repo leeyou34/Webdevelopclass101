@@ -16,11 +16,16 @@ public record TodoDTO(
 	@Size(max = 200, message = "할 일은 200자 이내로 입력해 주세요.")
 	String title,
 
-	boolean done,
+	/** 등록할 때는 생략할 수 있습니다(생략하면 미완료). */
+	Boolean done,
 
 	Instant createdAt,
 
 	Instant updatedAt) {
+
+	public boolean doneOrFalse() {
+		return Boolean.TRUE.equals(done);
+	}
 
 	static TodoDTO from(TodoEntity entity) {
 		return new TodoDTO(entity.getId().toString(), entity.getTitle(), entity.isDone(),

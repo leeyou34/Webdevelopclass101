@@ -46,7 +46,7 @@ public class TodoController {
 
 	@PutMapping
 	public ResponseDTO<TodoDTO> update(@AuthenticationPrincipal Jwt jwt, @Valid @RequestBody TodoDTO dto) {
-		return ResponseDTO.of(service.update(userId(jwt), todoId(dto), dto.title(), dto.done()));
+		return ResponseDTO.of(service.update(userId(jwt), todoId(dto), dto.title(), dto.doneOrFalse()));
 	}
 
 	@DeleteMapping
