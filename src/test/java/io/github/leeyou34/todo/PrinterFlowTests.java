@@ -65,6 +65,9 @@ class PrinterFlowTests {
 		assertThat(field(get("/printer/requests?cycleId=" + cycle), r4, "status")).isEqualTo("CANCELLED_UNPAID");
 		call("/printer/requests", requestJson(cycle, shopA, "늦은 신청", 1, 0), status().isConflict());
 		call("/printer/cycles/" + cycle + "/confirm", "{}");
+		// 할 일: 확정 다음 순서인 발주서 작성이 그날 업무로 나옴
+		String tasks = get("/printer/tasks?asOf=2017-08-08");
+		assertThat((List<?>) JsonPath.read(tasks, "$.tasks[?(@.title == '2017-08 발주서 작성')]")).hasSize(1);
 
 		// 5. 발주서(여유분 안드로이드 1), 6. 품의, 7. 입고(자동 시리얼)
 		String po = id(call("/printer/cycles/" + cycle + "/purchase-orders",
@@ -103,6 +106,9 @@ class PrinterFlowTests {
 		// 본사 미수 → 기한 초과 경고 → 수금 확인 → 완료
 		String dash = get("/printer/dashboard?asOf=2017-10-20");
 		assertThat(num(dash, "$.overdueCount")).isEqualTo(1);
+		List<?> collect = JsonPath.read(get("/printer/tasks?asOf=2017-10-20"), "$.tasks[?(@.category == '수금')].priority");
+		assertThat(collect).hasSize(1);
+		assertThat(((Number) collect.get(0)).intValue()).isEqualTo(1); // 기한이 지나면 긴급
 		call("/printer/invoices/" + hqId + "/payment", "{\"date\":\"2017-10-21\"}");
 		assertThat(field(get("/printer/requests?cycleId=" + cycle), r2, "status")).isEqualTo("COMPLETED");
 		assertThat(field(get("/printer/requests?cycleId=" + cycle), r3, "status")).isEqualTo("COMPLETED");
@@ -114,6 +120,22 @@ class PrinterFlowTests {
 		assertThat(num(aug, "$.cancelled")).isEqualTo(1);
 		String sep = get("/printer/reports/monthly?month=2017-09");
 		assertThat(num(sep, "$.accountingBasis.android") + num(sep, "$.accountingBasis.ios")).isEqualTo(4);
+
+		// 기간 분석: 한 달은 일 단위, 1년은 월 단위
+		String month = get("/printer/analytics?from=2017-08-01&to=2017-08-31");
+		assertThat(str(month, "$.unit")).isEqualTo("day");
+		assertThat((List<?>) JsonPath.read(month, "$.series")).hasSize(31);
+		assertThat(num(month, "$.summary.delivered.android") + num(month, "$.summary.delivered.ios")).isEqualTo(4);
+		assertThat(num(month, "$.summary.profit")).isEqualTo(52000);
+		assertThat(num(month, "$.summary.requests")).isEqualTo(4);
+		assertThat(num(month, "$.summary.cancelled")).isEqualTo(1);
+		assertThat(str(month, "$.previousFrom")).isEqualTo("2017-07-01");
+		String year = get("/printer/analytics?from=2017-01-01&to=2017-12-31");
+		assertThat(str(year, "$.unit")).isEqualTo("month");
+		assertThat((List<?>) JsonPath.read(year, "$.series")).hasSize(12);
+		// 수금 = 개인 입금 286,000 + 143,000 + 본사 173,000
+		assertThat(num(year, "$.summary.collected")).isEqualTo(602000);
+		get("/printer/analytics?from=2017-09-01&to=2017-08-01", status().isBadRequest());
 
 		// 기록이 남았는지
 		assertThat((List<?>) JsonPath.read(get("/printer/activity"), "$")).hasSizeGreaterThan(15);
@@ -199,6 +221,15 @@ class PrinterFlowTests {
 		assertThat(num(dash, "$.receivablesCount")).isEqualTo(1);
 		assertThat(num(dash, "$.pendingRefunds")).isGreaterThan(0);
 		assertThat((List<?>) JsonPath.read(dash, "$.suggestions")).isNotEmpty();
+		java.time.LocalDate today = java.time.LocalDate.now();
+		String year = get("/printer/analytics?from=" + today.withDayOfMonth(1).minusMonths(11) + "&to=" + today);
+		assertThat((List<?>) JsonPath.read(year, "$.series")).hasSize(12);
+		assertThat(num(year, "$.summary.delivered.android") + num(year, "$.summary.delivered.ios")).isGreaterThan(20);
+		assertThat((List<?>) JsonPath.read(year, "$.byShop")).isNotEmpty();
+		String tasks = get("/printer/tasks");
+		List<String> due = JsonPath.read(tasks, "$.tasks[*].dueOn");
+		assertThat(due).isNotEmpty().isSorted();
+		assertThat((List<?>) JsonPath.read(tasks, "$.tasks[?(@.category == '사후 처리')]")).hasSize(2);
 		call("/printer/demo", "", status().isConflict());
 	}
 
@@ -226,9 +257,13 @@ class PrinterFlowTests {
 	}
 
 	private String get(String path) throws Exception {
+		return get(path, status().isOk());
+	}
+
+	private String get(String path, ResultMatcher expected) throws Exception {
 		return mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get(path)
 			.header("Authorization", "Bearer " + token))
-			.andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+			.andExpect(expected).andReturn().getResponse().getContentAsString();
 	}
 
 	private static String id(String body) {

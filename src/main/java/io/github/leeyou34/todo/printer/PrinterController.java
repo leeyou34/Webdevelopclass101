@@ -46,10 +46,12 @@ import io.github.leeyou34.todo.printer.PrinterDtos.ShopInput;
 public class PrinterController {
 
 	private final PrinterService service;
+	private final PrinterInsightService insight;
 	private final DemoDataService demo;
 
-	public PrinterController(PrinterService service, DemoDataService demo) {
+	public PrinterController(PrinterService service, PrinterInsightService insight, DemoDataService demo) {
 		this.service = service;
+		this.insight = insight;
 		this.demo = demo;
 	}
 
@@ -59,6 +61,21 @@ public class PrinterController {
 	public Dashboard dashboard(@AuthenticationPrincipal Jwt jwt,
 		@RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate asOf) {
 		return service.dashboard(owner(jwt), asOf);
+	}
+
+	/** 기간 분석: from~to (기본값: 이번 달 1일 ~ 오늘). 45일 이하는 일 단위, 넘으면 월 단위 추이 */
+	@GetMapping("/analytics")
+	public InsightDtos.Analytics analytics(@AuthenticationPrincipal Jwt jwt,
+		@RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+		@RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to) {
+		return insight.analytics(owner(jwt), from, to);
+	}
+
+	/** 일자·중요도별 운영 업무(오늘의 할 일에 표시) */
+	@GetMapping("/tasks")
+	public InsightDtos.OpsTasks tasks(@AuthenticationPrincipal Jwt jwt,
+		@RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate asOf) {
+		return insight.tasks(owner(jwt), asOf);
 	}
 
 	@GetMapping("/shops")

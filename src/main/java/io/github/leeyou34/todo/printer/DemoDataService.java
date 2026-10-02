@@ -33,6 +33,7 @@ import io.github.leeyou34.todo.printer.PrinterDtos.ShopInput;
  * 체험용 가상 데이터. 영업장·신청자 이름과 연락처는 모두 지어낸 값이고(가린 형태로 표기),
  * 업무 흐름만 2016~2017년 실제 운영 방식을 본뜹니다.
  *
+ * - 11~3달 전: 정상 처리된 달(기간 분석·추이 그래프용, 달마다 수량이 다름)
  * - 두 달 전: 신청부터 본사 수금까지 끝난 달
  * - 지난달: 배송·계산서까지 끝났고 본사 미수, 반품·교환·AS·반송·취소가 섞인 달
  * - 이번 달: 신청을 받는 중인 달(직접 마감·확정·발주를 해 볼 수 있음)
@@ -51,6 +52,9 @@ public class DemoDataService {
 		{ "S007", "온새미(방)", "부산", "동부팀", "윤0경", "051-000-6630", "부산시 동래구 ***", "SPECIALTY" },
 		{ "S008", "중앙(영)", "서울", "직영", "직영 영업소", "02-000-1100", "서울시 중구 ***", "DIRECT" },
 	};
+
+	private static final String[] NAMES = { "김0희", "이0우", "박0준", "최0린", "정0아", "강0민", "조0은", "윤0호", "장0서",
+		"임0현", "한0지", "오0빈", "서0율", "신0영", "권0수", "황0진", "안0경", "송0하" };
 
 	private final PrinterService svc;
 	private final ShopRepository shops;
@@ -74,6 +78,27 @@ public class DemoDataService {
 				row[5], row[6], LocalDate.of(2010, 3, 1))));
 		}
 
+		// 11~3달 전: 정상 처리된 달. 수량은 계절에 따라 들쭉날쭉하게(고정된 규칙이라 매번 같음)
+		int seq = 0;
+		for (int k = 11; k >= 3; k--) {
+			YearMonth m = thisMonth.minusMonths(k);
+			OrderCycle c = svc.openCycle(owner, new CycleInput(m.toString(), m.atDay(7)));
+			int count = 3 + (m.getMonthValue() * 7) % 5;
+			List<OrderRequest> rs = new ArrayList<>();
+			for (int i = 0; i < count; i++) {
+				Shop shop = s.get((m.getMonthValue() + i * 3) % s.size());
+				int ios = (m.getMonthValue() + i) % 4 == 0 ? 1 : 0;
+				int android = 1 + (m.getMonthValue() * 5 + i) % 3 - (ios == 1 && i % 2 == 0 ? 1 : 0);
+				String name = shop.type == ShopType.DIRECT ? "직영 영업소" : NAMES[seq++ % NAMES.length];
+				rs.add(req(owner, c, shop, name, android, ios));
+			}
+			for (OrderRequest r : rs) {
+				svc.confirmPayment(owner, r.id, new PaymentInput(null, m.atDay(3 + rs.indexOf(r) % 4)));
+			}
+			runToDelivery(owner, c, m, rs, today, false, 0, 0);
+			invoice(owner, c, m.plusMonths(1).atDay(10), today, true, m.plusMonths(1).atDay(24));
+		}
+
 		// 두 달 전: 처음부터 끝까지 정상 처리
 		YearMonth q = thisMonth.minusMonths(2);
 		OrderCycle cq = svc.openCycle(owner, new CycleInput(q.toString(), q.atDay(7)));
@@ -86,7 +111,7 @@ public class DemoDataService {
 		for (OrderRequest r : rq) {
 			svc.confirmPayment(owner, r.id, new PaymentInput(null, q.atDay(4)));
 		}
-		runToDelivery(owner, cq, q, rq, today, false);
+		runToDelivery(owner, cq, q, rq, today, false, 2, 1);
 		invoice(owner, cq, q.plusMonths(1).atDay(10), today, true, q.plusMonths(1).atDay(25));
 
 		// 지난달: 예외가 섞인 달
@@ -107,7 +132,7 @@ public class DemoDataService {
 		OrderRequest cancelled = rp.remove(rp.size() - 1);
 		svc.cancel(owner, cancelled.id, new ReasonInput("영업장 사정으로 신청 취소", p.atDay(9)));
 		svc.refund(owner, cancelled.id, new RefundInput(null, p.atDay(12)));
-		runToDelivery(owner, cp, p, rp, today, true);
+		runToDelivery(owner, cp, p, rp, today, true, 2, 1);
 		invoice(owner, cp, cap(thisMonth.atDay(10), today), today, false, null);
 		LocalDate after = cap(thisMonth.atDay(3), today);
 		String returned = devices.findByOwnerIdAndRequestId(owner, rp.get(1).id).get(0).serial;
@@ -139,13 +164,13 @@ public class DemoDataService {
 
 	/** 확정 → 발주 → 품의 → 입고 → 배정 → 발송 → 배송 완료. withReturnToSender면 한 건을 반송 후 재발송 */
 	private void runToDelivery(UUID owner, OrderCycle c, YearMonth m, List<OrderRequest> rs, LocalDate today,
-		boolean withReturnToSender) {
+		boolean withReturnToSender, int bufferAndroid, int bufferIos) {
 		if (c.status == Enums.CycleStatus.OPEN) {
 			svc.closeCycle(owner, c.id, new DateInput(m.atDay(8)));
 			svc.confirmCycle(owner, c.id, new DateInput(m.atDay(8)));
 		}
 		PurchaseOrder po = svc.createPurchaseOrder(owner, c.id,
-			new PurchaseOrderInput(null, m.atDay(8), 2, 1, "39A 3개, 27A 2개"));
+			new PurchaseOrderInput(null, m.atDay(8), bufferAndroid, bufferIos, "39A 3개, 27A 2개"));
 		svc.recordApproval(owner, po.id, new ApprovalInput("영업팀-" + m.toString().replace("-", "") + "-01", m.atDay(9)));
 		svc.receive(owner, po.id, new ReceiveInput(m.atDay(22), null, po.androidQty, po.iosQty));
 		int n = 0;
@@ -167,8 +192,15 @@ public class DemoDataService {
 	private void invoice(UUID owner, OrderCycle c, LocalDate issueOn, LocalDate today, boolean hqPaid,
 		LocalDate paidOn) {
 		LocalDate issue = cap(issueOn, today);
-		for (Invoice i : svc.requestInvoices(owner, c.id, new InvoiceRequestInput(InvoiceType.PERSONAL, issue))) {
-			svc.issueInvoice(owner, i.id, new DateInput(issue));
+		List<OrderRequest> live = svc.listRequests(owner, c.id).stream()
+			.filter(r -> r.deliveredOn != null).toList();
+		if (live.stream().anyMatch(r -> r.personalAmount > 0)) {
+			for (Invoice i : svc.requestInvoices(owner, c.id, new InvoiceRequestInput(InvoiceType.PERSONAL, issue))) {
+				svc.issueInvoice(owner, i.id, new DateInput(issue));
+			}
+		}
+		if (live.stream().noneMatch(r -> r.hqAmount > 0)) {
+			return;
 		}
 		for (Invoice i : svc.requestInvoices(owner, c.id, new InvoiceRequestInput(InvoiceType.HQ, issue))) {
 			svc.issueInvoice(owner, i.id, new DateInput(issue));
