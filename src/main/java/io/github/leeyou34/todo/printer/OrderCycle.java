@@ -14,7 +14,7 @@ import jakarta.persistence.Table;
 @Table(name = "pr_cycle")
 public class OrderCycle extends OwnedEntity {
 
-	@Column(nullable = false, length = 7)
+	@Column(name = "cycle_month", nullable = false, length = 7) // MONTH는 H2 예약어
 	public String month;
 
 	@Column(nullable = false)

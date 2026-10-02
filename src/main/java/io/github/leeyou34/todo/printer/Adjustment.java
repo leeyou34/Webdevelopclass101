@@ -13,7 +13,7 @@ import jakarta.persistence.Table;
 public class Adjustment extends OwnedEntity {
 
 	/** 반영할 달, "2017-09" 형식 */
-	@Column(nullable = false, length = 7)
+	@Column(name = "adj_month", nullable = false, length = 7) // MONTH는 H2 예약어
 	public String month;
 
 	public UUID requestId;
