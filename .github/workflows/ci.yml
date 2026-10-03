@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [master, 'upgrade-*']
+    branches: ['**']
   pull_request:
 
 jobs:
@@ -34,7 +34,19 @@ jobs:
           errs = [l for l in lines if re.search(r'error:|FAILED|Exception|What went wrong|Could not', l)]
           print('::error title=build-errors::' + esc('\n'.join(errs[:80])))
           print('::error title=build-tail::' + esc('\n'.join(lines[-60:])))
+          for i, l in enumerate(lines):
+              if '처리하지 못한 오류' in l:
+                  print('::error title=unexpected-exception::' + esc('\n'.join(lines[i:i+40])))
+                  break
           for f in glob.glob('build/test-results/test/*.xml'):
+              out = ''.join(e.text or '' for e in ET.parse(f).getroot().iter('system-out')).splitlines()
+              for i, l in enumerate(out):
+                  if '처리하지 못한 오류' in l:
+                      print('::error title=exception in ' + f.split('/')[-1] + '::' + esc('\n'.join(out[i:i+40])))
+                      break
+              ddl = [l for l in out if 'DDL' in l or 'GenerationTarget' in l]
+              if ddl:
+                  print('::error title=ddl in ' + f.split('/')[-1] + '::' + esc('\n'.join(ddl[:20])))
               for case in ET.parse(f).getroot().iter('testcase'):
                   fail = case.find('failure') if case.find('failure') is not None else case.find('error')
                   if fail is not None:
