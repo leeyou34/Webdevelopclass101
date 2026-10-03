@@ -43,4 +43,10 @@ public class Shop extends OwnedEntity {
 
 	@Column(nullable = false)
 	public boolean active = true;
+
+	/** 폐쇄일(폐점·통합 등). 폐쇄된 영업장은 새 신청을 받지 않습니다. */
+	public LocalDate closedOn;
+
+	@Column(length = 200)
+	public String note;
 }

@@ -11,6 +11,7 @@ import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -48,11 +49,16 @@ public class PrinterController {
 	private final PrinterService service;
 	private final PrinterInsightService insight;
 	private final DemoDataService demo;
+	private final OpsExtrasService extras;
+	private final OpsChatService chat;
 
-	public PrinterController(PrinterService service, PrinterInsightService insight, DemoDataService demo) {
+	public PrinterController(PrinterService service, PrinterInsightService insight, DemoDataService demo,
+		OpsExtrasService extras, OpsChatService chat) {
 		this.service = service;
 		this.insight = insight;
 		this.demo = demo;
+		this.extras = extras;
+		this.chat = chat;
 	}
 
 	// ---------------------------------------------------------------- 조회
@@ -142,6 +148,53 @@ public class PrinterController {
 	@PostMapping("/shops")
 	public Shop createShop(@AuthenticationPrincipal Jwt jwt, @RequestBody ShopInput in) {
 		return service.createShop(owner(jwt), in);
+	}
+
+	@PutMapping("/shops/{id}")
+	public Shop updateShop(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID id,
+		@RequestBody ExtraDtos.ShopUpdateInput in) {
+		return extras.updateShop(owner(jwt), id, in);
+	}
+
+	@PostMapping("/shops/{id}/close")
+	public Shop closeShop(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID id,
+		@RequestBody(required = false) ExtraDtos.CloseShopInput in) {
+		return extras.closeShop(owner(jwt), id, in);
+	}
+
+	@PostMapping("/shops/{id}/reopen")
+	public Shop reopenShop(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID id) {
+		return extras.reopenShop(owner(jwt), id);
+	}
+
+	// ---------------------------------------------------------------- 입금 대조 · 시리얼 조회 · 챗봇
+
+	@GetMapping("/deposits")
+	public List<Deposit> deposits(@AuthenticationPrincipal Jwt jwt) {
+		return extras.listDeposits(owner(jwt));
+	}
+
+	@PostMapping("/deposits/import")
+	public ExtraDtos.DepositImportResult importDeposits(@AuthenticationPrincipal Jwt jwt,
+		@RequestBody ExtraDtos.DepositImportInput in) {
+		return extras.importDeposits(owner(jwt), in);
+	}
+
+	@PostMapping("/deposits/{id}/match")
+	public Deposit matchDeposit(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID id,
+		@RequestBody ExtraDtos.DepositMatchInput in) {
+		return extras.matchDeposit(owner(jwt), id, in);
+	}
+
+	@GetMapping("/devices/lookup")
+	public ExtraDtos.DeviceLookup lookup(@AuthenticationPrincipal Jwt jwt, @RequestParam String serial) {
+		return extras.lookup(owner(jwt), serial);
+	}
+
+	@PostMapping("/chat")
+	public ExtraDtos.ChatReply chat(@AuthenticationPrincipal Jwt jwt, @RequestBody ExtraDtos.ChatInput in,
+		@RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate asOf) {
+		return chat.reply(owner(jwt), in == null ? null : in.message(), asOf);
 	}
 
 	// ---------------------------------------------------------------- 동작 1~21

@@ -49,10 +49,11 @@ public class PrinterInsightService {
 	private final CaseRepository cases;
 	private final InvoiceRepository invoices;
 	private final ActivityRepository activities;
+	private final DepositRepository deposits;
 
 	public PrinterInsightService(ShopRepository shops, CycleRepository cycles, RequestRepository requests,
 		PurchaseOrderRepository orders, CaseRepository cases, InvoiceRepository invoices,
-		ActivityRepository activities) {
+		ActivityRepository activities, DepositRepository deposits) {
 		this.shops = shops;
 		this.cycles = cycles;
 		this.requests = requests;
@@ -60,6 +61,7 @@ public class PrinterInsightService {
 		this.cases = cases;
 		this.invoices = invoices;
 		this.activities = activities;
+		this.deposits = deposits;
 	}
 
 	// ===================================================================== 기간 분석
@@ -144,7 +146,7 @@ public class PrinterInsightService {
 				ii += r.iosQty;
 			}
 			if (between(r.paidOn, from, to)) {
-				collected += r.paidAmount;
+				collected += Pricing.withoutVat(r.paidAmount); // 개인 입금은 VAT 포함으로 받으므로 공급가액으로 환산
 			}
 		}
 		for (Invoice i : d.invoices) {
@@ -291,6 +293,14 @@ public class PrinterInsightService {
 				case REPAIR -> out.add(task("repair-" + id, k.openedOn.plusDays(14), 3, "사후 처리", "AS 결과 등록 " + k.serial,
 					nz(k.reason) + (Boolean.TRUE.equals(k.freeWarranty) ? " · 무상" : " · 유상"), "devices", null, id, null));
 			}
+		}
+
+		List<Deposit> unmatched = deposits.findByOwnerIdOrderByDepositedOnDescCreatedAtDesc(owner).stream()
+			.filter(x -> x.requestId == null).toList();
+		if (!unmatched.isEmpty()) {
+			LocalDate oldest = unmatched.stream().map(x -> x.depositedOn).min(LocalDate::compareTo).orElse(asOf);
+			out.add(task("deposits", oldest.plusDays(1), 1, "입금", "미확인 입금 " + unmatched.size() + "건 확인",
+				"누구 돈인지 맞추지 못한 입금입니다. 신청 건과 연결하거나 입금자에게 확인하세요.", "deposits", null, null, null));
 		}
 
 		YearMonth last = YearMonth.from(asOf).minusMonths(1);

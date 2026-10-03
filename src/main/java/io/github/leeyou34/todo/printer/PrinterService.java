@@ -211,6 +211,9 @@ public class PrinterService {
 			throw ApiException.conflict("마감된 신청 기간에는 신청을 받을 수 없습니다.");
 		}
 		Shop s = shop(owner, in.shopId());
+		if (!s.active) {
+			throw ApiException.conflict(s.name + "은(는) 폐쇄된 영업장이라 신청을 받을 수 없습니다.");
+		}
 		int android = qty(in.androidQty());
 		int ios = qty(in.iosQty());
 		if (android + ios == 0) {
@@ -236,9 +239,10 @@ public class PrinterService {
 	public OrderRequest confirmPayment(UUID owner, UUID requestId, PaymentInput in) {
 		OrderRequest r = request(owner, requestId);
 		require(r, RequestStatus.APPLIED);
-		long amount = in == null || in.amount() == null ? r.personalAmount : in.amount();
-		if (amount != r.personalAmount) {
-			throw ApiException.badRequest("입금액(" + won(amount) + ")이 신청 금액(" + won(r.personalAmount) + ")과 다릅니다.");
+		long expected = Pricing.withVat(r.personalAmount);
+		long amount = in == null || in.amount() == null ? expected : in.amount();
+		if (amount != expected) {
+			throw ApiException.badRequest("입금액(" + won(amount) + ")이 받을 금액(" + won(expected) + ", VAT 포함)과 다릅니다.");
 		}
 		r.paidAmount = amount;
 		r.paidOn = day(in == null ? null : in.date());
@@ -566,10 +570,10 @@ public class PrinterService {
 		r.hqAmount = Pricing.hqAmount(s.type, android, ios);
 		String money = "";
 		if (r.paidAmount > 0) {
-			long diff = r.personalAmount - r.paidAmount;
+			long diff = Pricing.withVat(r.personalAmount) - r.paidAmount;
 			if (diff < 0) {
 				r.refundDue += -diff;
-				r.paidAmount = r.personalAmount;
+				r.paidAmount = Pricing.withVat(r.personalAmount);
 				money = " · 차액 환불 대기 " + won(-diff);
 			} else if (diff > 0) {
 				r.note = "기종 변경으로 추가 입금 " + won(diff) + " 필요";
@@ -633,7 +637,7 @@ public class PrinterService {
 		long hqBefore = r.hqAmount;
 		r.personalAmount = Pricing.personalAmount(s.type, r.androidQty, r.iosQty);
 		r.hqAmount = Pricing.hqAmount(s.type, r.androidQty, r.iosQty);
-		r.refundDue += Pricing.personalRefundPerUnit(s.type);
+		r.refundDue += Pricing.withVat(Pricing.personalRefundPerUnit(s.type, old.model));
 		long hqDiff = hqBefore - r.hqAmount;
 		if (hqDiff > 0 && hqInvoiceIssued(owner, r.cycleId)) {
 			newAdjustment(owner, r.id, -hqDiff, "반품 " + old.serial + " 본사 앞 차감", date);
@@ -668,7 +672,7 @@ public class PrinterService {
 		}
 		String adj = "";
 		if (r.invoicedOn != null) {
-			Adjustment a = newAdjustment(owner, r.id, -amount, "환불 " + r.applicantName, date);
+			Adjustment a = newAdjustment(owner, r.id, -Pricing.withoutVat(amount), "환불 " + r.applicantName, date);
 			adj = " · " + a.month + " 계산서에 조정 반영";
 		}
 		log(owner, 18, "환불 완료", "request", r.id, r.applicantName + " · " + won(amount) + adj);
@@ -982,7 +986,7 @@ public class PrinterService {
 		return adjustments.save(a);
 	}
 
-	private void log(UUID owner, int action, String label, String targetType, UUID targetId, String detail) {
+	void log(UUID owner, int action, String label, String targetType, UUID targetId, String detail) {
 		ActivityLog a = new ActivityLog();
 		a.ownerId = owner;
 		a.action = action;
@@ -1128,5 +1132,18 @@ public class PrinterService {
 
 	static String label(DeviceModel m) {
 		return m == DeviceModel.IOS ? "iOS" : "안드로이드";
+	}
+
+	static String label(DeviceStatus s) {
+		return switch (s) {
+			case IN_STOCK -> "재고";
+			case ASSIGNED -> "배정됨(발송 전)";
+			case SHIPPED -> "배송 중";
+			case DELIVERED -> "사용 중";
+			case AWAITING_RECOVERY -> "회수 대기";
+			case RECOVERED -> "회수 완료(불량)";
+			case IN_REPAIR -> "수리 중";
+			case SCRAPPED -> "폐기";
+		};
 	}
 }

@@ -179,15 +179,15 @@ class PrinterFlowTests {
 		assertThat((Boolean) JsonPath.read(paid, "$.freeWarranty")).isFalse();
 		call("/printer/cases/" + id(paid) + "/repair-result", "{\"repaired\":true}");
 
-		// 17. 반품: 회수하면 재고로 돌아오고 143,000원 환불 대기
+		// 17. 반품: 회수하면 재고로 돌아오고 157,300원(VAT 포함) 환불 대기
 		List<?> swapped = JsonPath.read(get("/printer/cases"), "$[?(@.type=='EXCHANGE')].newSerial");
 		String exchangedTo = swapped.get(0).toString();
 		String ret = id(call("/printer/devices/" + exchangedTo + "/return", "{\"reason\":\"사용 안 함\"}"));
 		call("/printer/cases/" + ret + "/recover", "{}");
 		String req = get("/printer/requests?cycleId=" + cycle);
 		assertThat(numField(req, r1, "androidQty")).isEqualTo(1);
-		assertThat(numField(req, r1, "refundDue") - numField(req, r1, "refundedTotal")).isEqualTo(143000);
-		assertThat(num(get("/printer/dashboard"), "$.pendingRefunds")).isEqualTo(143000);
+		assertThat(numField(req, r1, "refundDue") - numField(req, r1, "refundedTotal")).isEqualTo(157300);
+		assertThat(num(get("/printer/dashboard"), "$.pendingRefunds")).isEqualTo(157300);
 
 		// 상태에 맞지 않는 동작은 거부
 		call("/printer/requests/" + r1 + "/cancel", "{\"reason\":\"늦은 취소\"}", status().isConflict());
@@ -214,7 +214,7 @@ class PrinterFlowTests {
 	@Test
 	void demoDataBuildsAConsistentPicture() throws Exception {
 		String out = call("/printer/demo", "");
-		assertThat(num(out, "$.shops")).isEqualTo(8);
+		assertThat(num(out, "$.shops")).isEqualTo(10);
 		String dash = get("/printer/dashboard");
 		assertThat(num(dash, "$.unrecoveredExchanges")).isEqualTo(1);
 		assertThat(num(dash, "$.openRepairs")).isEqualTo(1);
@@ -231,6 +231,76 @@ class PrinterFlowTests {
 		assertThat(due).isNotEmpty().isSorted();
 		assertThat((List<?>) JsonPath.read(tasks, "$.tasks[?(@.category == '사후 처리')]")).hasSize(2);
 		call("/printer/demo", "", status().isConflict());
+	}
+
+	@Test
+	void depositsAreMatchedFromPastedBankLines() throws Exception {
+		String shop = id(call("/printer/shops", shopJson("A01", "한빛(방)", "SPECIALTY")));
+		String liri = id(call("/printer/shops", shopJson("L01", "푸른마을(지사)", "LIRICOS")));
+		String cycle = id(call("/printer/cycles", "{\"month\":\"2017-08\"}"));
+		String r1 = id(call("/printer/requests", requestJson(cycle, shop, "서0윤", 1, 0)));
+		String r2 = id(call("/printer/requests", requestJson(cycle, liri, "문0희", 1, 1)));
+		// 리리코스 지사: 개인 54,000 + 64,000, 본사 89,000 + 109,000
+		assertThat(numField(get("/printer/requests?cycleId=" + cycle), r2, "personalAmount")).isEqualTo(118000);
+		assertThat(numField(get("/printer/requests?cycleId=" + cycle), r2, "hqAmount")).isEqualTo(198000);
+		// 개인 입금은 VAT 포함 금액
+		call("/printer/requests/" + r1 + "/payment", "{\"amount\":143000}", status().isBadRequest());
+
+		String result = call("/printer/deposits/import", "{\"text\":\"2017-08-03\\t한빛서0윤\\t157,300\\n2017.08.04 푸른마을 문0희 129,800\\n8/5/2017 모르는사람 157,300\"}");
+		assertThat(num(result, "$.created")).isEqualTo(3);
+		assertThat(num(result, "$.matched")).isEqualTo(2);
+		assertThat(field(get("/printer/requests?cycleId=" + cycle), r1, "status")).isEqualTo("PAID");
+		assertThat(field(get("/printer/requests?cycleId=" + cycle), r2, "status")).isEqualTo("PAID");
+		assertThat(str(get("/printer/requests?cycleId=" + cycle), "$[?(@.id=='" + r1 + "')].paidOn")).contains("2017-08-03");
+
+		// 남은 미확인 입금은 할 일로 잡히고, 직접 신청 건에 연결할 수 있음
+		String tasks = get("/printer/tasks?asOf=2017-08-06");
+		assertThat((List<?>) JsonPath.read(tasks, "$.tasks[?(@.category == '입금')]")).hasSize(1);
+		String r3 = id(call("/printer/requests", requestJson(cycle, shop, "김0수", 1, 0)));
+		String dep = JsonPath.read(get("/printer/deposits"), "$[?(@.requestId == null)].id").toString().replaceAll("[\\[\\]\"]", "");
+		call("/printer/deposits/" + dep + "/match", "{\"requestId\":\"" + r3 + "\"}");
+		assertThat(field(get("/printer/requests?cycleId=" + cycle), r3, "status")).isEqualTo("PAID");
+	}
+
+	@Test
+	void closedShopsTakeNoRequestsAndSerialLookupWorks() throws Exception {
+		String shop = id(call("/printer/shops", shopJson("A01", "옛터(방)", "SPECIALTY")));
+		String cycle = id(call("/printer/cycles", "{\"month\":\"2017-08\"}"));
+		String r = id(call("/printer/requests", requestJson(cycle, shop, "이0진", 1, 0)));
+		mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put("/printer/shops/" + shop)
+			.header("Authorization", "Bearer " + token).contentType(MediaType.APPLICATION_JSON)
+			.content("{\"name\":\"옛터(방)\",\"phone\":\"02-000-1234\"}")).andExpect(status().isOk());
+		call("/printer/shops/" + shop + "/close", "{\"note\":\"중앙(영)으로 통합\"}");
+		call("/printer/requests", requestJson(cycle, shop, "늦은 신청", 1, 0), status().isConflict());
+
+		call("/printer/requests/" + r + "/payment", "{}");
+		call("/printer/cycles/" + cycle + "/close", "{}");
+		call("/printer/cycles/" + cycle + "/confirm", "{}");
+		String po = id(call("/printer/cycles/" + cycle + "/purchase-orders", "{}"));
+		call("/printer/purchase-orders/" + po + "/receipts", "{\"serials\":[\"AMR70KA17080001\"]}");
+		call("/printer/requests/" + r + "/assign", "{\"serials\":[\"amr70ka17080001\"]}");
+		String found = get("/printer/devices/lookup?serial=AMR70KA17080001");
+		assertThat(str(found, "$.device.model")).isEqualTo("ANDROID");
+		assertThat(str(found, "$.shop.name")).isEqualTo("옛터(방)");
+		get("/printer/devices/lookup?serial=AMR7OKA99999999", status().isNotFound());
+	}
+
+	@Test
+	void chatbotAnswersFromDataAndManual() throws Exception {
+		call("/printer/demo", "");
+		String help = call("/printer/chat", "{\"message\":\"도움말\"}");
+		assertThat((List<?>) JsonPath.read(help, "$.suggestions")).isNotEmpty();
+		assertThat(str(call("/printer/chat", "{\"message\":\"재고 몇 대야?\"}"), "$.answer")).contains("재고는");
+		assertThat(str(call("/printer/chat", "{\"message\":\"미수금 현황 알려줘\"}"), "$.answer")).contains("본사 앞 미수금");
+		assertThat(str(call("/printer/chat", "{\"message\":\"반품 절차\"}"), "$.answer")).contains("회수 확인");
+		assertThat(str(call("/printer/chat", "{\"message\":\"가격표\"}"), "$.answer")).contains("157,300");
+		assertThat(str(call("/printer/chat", "{\"message\":\"지난달 실적\"}"), "$.answer")).contains("배송");
+		assertThat(str(call("/printer/chat", "{\"message\":\"미확인 입금\"}"), "$.answer")).contains("1건");
+		assertThat(str(call("/printer/chat", "{\"message\":\"오늘 할 일\"}"), "$.answer")).contains("할 일");
+		String serial = JsonPath.read(get("/printer/devices?status=DELIVERED"), "$[0].serial");
+		assertThat(str(call("/printer/chat", "{\"message\":\"" + serial + " 어디 있어?\"}"), "$.answer")).contains(serial);
+		assertThat(str(call("/printer/chat", "{\"message\":\"한빛 영업장 어때\"}"), "$.answer")).contains("한빛(방)");
+		assertThat(str(call("/printer/chat", "{\"message\":\"날씨 어때\"}"), "$.answer")).contains("연결하지 못했습니다");
 	}
 
 	// ------------------------------------------------------------------ helpers

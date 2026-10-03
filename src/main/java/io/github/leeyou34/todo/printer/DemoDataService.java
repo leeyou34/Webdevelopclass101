@@ -51,17 +51,21 @@ public class DemoDataService {
 		{ "S006", "누리(방)", "부산", "동부팀", "한0자", "051-000-2267", "부산시 해운대구 ***", "SPECIALTY" },
 		{ "S007", "온새미(방)", "부산", "동부팀", "윤0경", "051-000-6630", "부산시 동래구 ***", "SPECIALTY" },
 		{ "S008", "중앙(영)", "서울", "직영", "직영 영업소", "02-000-1100", "서울시 중구 ***", "DIRECT" },
+		{ "L001", "푸른마을(지사)", "리리코스", "중부지사", "서0희", "041-000-3381", "충남 천안시 ***", "LIRICOS" },
+		{ "S009", "옛터(방)", "서울", "북부2팀", "오0자", "02-000-4417", "서울시 강북구 ***", "SPECIALTY" },
 	};
 
 	private static final String[] NAMES = { "김0희", "이0우", "박0준", "최0린", "정0아", "강0민", "조0은", "윤0호", "장0서",
 		"임0현", "한0지", "오0빈", "서0율", "신0영", "권0수", "황0진", "안0경", "송0하" };
 
 	private final PrinterService svc;
+	private final OpsExtrasService extras;
 	private final ShopRepository shops;
 	private final DeviceRepository devices;
 
-	public DemoDataService(PrinterService svc, ShopRepository shops, DeviceRepository devices) {
+	public DemoDataService(PrinterService svc, OpsExtrasService extras, ShopRepository shops, DeviceRepository devices) {
 		this.svc = svc;
+		this.extras = extras;
 		this.shops = shops;
 		this.devices = devices;
 	}
@@ -150,10 +154,17 @@ public class DemoDataService {
 		OrderRequest m3 = req(owner, cm, s.get(4), "배0진", 2, 0);
 		req(owner, cm, s.get(6), "권0아", 1, 0);
 		req(owner, cm, s.get(7), "직영 영업소", 1, 0);
+		// 입금은 통장 내역을 붙여 넣어 자동 대조(입금자명 = 영업장명 + 신청자명). 마지막 줄은 일부러 맞지 않는 입금
 		LocalDate payDay = cap(thisMonth.atDay(3), today);
-		for (OrderRequest r : List.of(m1, m2, m3)) {
-			svc.confirmPayment(owner, r.id, new PaymentInput(null, payDay));
-		}
+		String bank = String.join("\n",
+			payDay + "\t한빛서0윤\t157,300",
+			payDay + "\t새봄문0희\t157,300",
+			payDay + "\t가람배0진\t314,600",
+			payDay + "\t김0수\t157,300");
+		extras.importDeposits(owner, new ExtraDtos.DepositImportInput(bank, payDay));
+
+		// 폐점한 영업장(지난달 말 중앙(영)으로 통합)
+		extras.closeShop(owner, s.get(9).id, new ExtraDtos.CloseShopInput(cap(p.atEndOfMonth(), today), "중앙(영)으로 통합"));
 
 		Map<String, Object> out = new LinkedHashMap<>();
 		out.put("shops", s.size());
