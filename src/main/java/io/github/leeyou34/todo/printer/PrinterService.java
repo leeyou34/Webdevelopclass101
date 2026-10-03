@@ -190,7 +190,10 @@ public class PrinterService {
 		c.closedOn = day(in == null ? null : in.date());
 		int cancelled = 0;
 		for (OrderRequest r : requests.findByOwnerIdAndCycleIdOrderByCreatedAtAsc(owner, c.id)) {
-			if (r.status == RequestStatus.APPLIED) {
+			if (r.status == RequestStatus.APPLIED && r.personalAmount == 0) {
+				// 직영 영업소처럼 개인이 낼 돈이 없는 신청은 입금 없이 확정 대상으로 넘깁니다(이전 데이터 보정).
+				markNoPaymentNeeded(r, c.closedOn);
+			} else if (r.status == RequestStatus.APPLIED) {
 				r.status = RequestStatus.CANCELLED_UNPAID;
 				r.note = "신청 기간 안에 입금하지 않아 자동 취소";
 				cancelled++;
@@ -228,6 +231,9 @@ public class PrinterService {
 		r.iosQty = ios;
 		r.personalAmount = Pricing.personalAmount(s.type, android, ios);
 		r.hqAmount = Pricing.hqAmount(s.type, android, ios);
+		if (r.personalAmount == 0) {
+			markNoPaymentNeeded(r, day(null));
+		}
 		requests.save(r);
 		log(owner, 2, "신청 등록", "request", r.id,
 			s.name + " · " + r.applicantName + " · 안드로이드 " + android + " / iOS " + ios);
@@ -238,6 +244,9 @@ public class PrinterService {
 
 	public OrderRequest confirmPayment(UUID owner, UUID requestId, PaymentInput in) {
 		OrderRequest r = request(owner, requestId);
+		if (r.personalAmount == 0 && r.status == RequestStatus.PAID) {
+			return r; // 개인 입금이 없는 신청(직영 영업소)은 등록 때 이미 입금 확인 상태입니다.
+		}
 		require(r, RequestStatus.APPLIED);
 		long expected = Pricing.withVat(r.personalAmount);
 		long amount = in == null || in.amount() == null ? expected : in.amount();
@@ -249,6 +258,14 @@ public class PrinterService {
 		r.status = RequestStatus.PAID;
 		log(owner, 3, "입금 확인", "request", r.id, r.applicantName + " · " + won(amount));
 		return r;
+	}
+
+	/** 개인 입금이 없는 신청(직영 영업소: 대금 전액 본사 청구)은 입금 단계를 건너뜁니다. */
+	private static void markNoPaymentNeeded(OrderRequest r, LocalDate date) {
+		r.status = RequestStatus.PAID;
+		r.paidAmount = 0;
+		r.paidOn = date;
+		r.note = "개인 입금 없음(대금 전액 본사 청구)";
 	}
 
 	// ===================================================================== 4. 배송 리스트 확정
@@ -682,7 +699,10 @@ public class PrinterService {
 	// ===================================================================== 19. 교환 출고 → 회수 확인
 
 	public ServiceCase exchange(UUID owner, String serial, ExchangeInput in) {
-		Device old = deliveredDevice(owner, serial);
+		Device scrapped = deviceBySerial(owner, serial);
+		boolean afterRepair = scrapped.status == DeviceStatus.SCRAPPED && scrapped.requestId != null
+			&& needsReplacement(owner, scrapped);
+		Device old = afterRepair ? scrapped : deliveredDevice(owner, serial);
 		Device fresh;
 		if (!blank(in.newSerial())) {
 			fresh = deviceBySerial(owner, in.newSerial());
@@ -701,9 +721,24 @@ public class PrinterService {
 		fresh.requestId = old.requestId;
 		fresh.shopId = old.shopId;
 		fresh.deliveredOn = date;
+		if (afterRepair) {
+			// 수리 불가로 폐기된 기기는 이미 서비스센터에 있어 회수할 것이 없습니다.
+			k.status = CaseStatus.CLOSED;
+			k.closedOn = date;
+			log(owner, 19, "교환 출고", "case", k.id, old.serial + "(수리 불가) → " + fresh.serial + " 교체 발송");
+			return k;
+		}
 		old.status = DeviceStatus.AWAITING_RECOVERY;
 		log(owner, 19, "교환 출고", "case", k.id, old.serial + " → " + fresh.serial + " (선배송, 회수 대기)");
 		return k;
+	}
+
+	/** 수리 불가로 끝났고 아직 교체 기기를 보내지 않은 기기인지 */
+	boolean needsReplacement(UUID owner, Device d) {
+		List<ServiceCase> mine = cases.findByOwnerIdOrderByOpenedOnDesc(owner).stream()
+			.filter(k -> d.id.equals(k.deviceId)).toList();
+		return mine.stream().anyMatch(k -> k.type == CaseType.REPAIR && k.status == CaseStatus.UNREPAIRABLE)
+			&& mine.stream().noneMatch(k -> k.type == CaseType.EXCHANGE);
 	}
 
 	// ===================================================================== 20. AS 접수 → 결과 등록

@@ -192,7 +192,7 @@ public class PrinterInsightService {
 			String cid = c.id.toString();
 			List<OrderRequest> rs = d.requests.stream().filter(r -> r.cycleId.equals(c.id)).toList();
 			if (c.status == CycleStatus.OPEN) {
-				long applied = rs.stream().filter(r -> r.status == RequestStatus.APPLIED).count();
+				long applied = rs.stream().filter(r -> r.status == RequestStatus.APPLIED && r.personalAmount > 0).count();
 				if (applied > 0) {
 					out.add(task("pay-" + cid, c.closesOn, 2, "신청·입금", c.month + " 입금 확인 " + applied + "건",
 						"마감 전에 입금을 확인하지 않으면 마감 때 자동 취소됩니다.", "orders", cid, null, null));
@@ -280,6 +280,13 @@ public class PrinterInsightService {
 		}
 
 		for (ServiceCase k : d.cases) {
+			if (k.type == CaseType.REPAIR && k.status == CaseStatus.UNREPAIRABLE
+				&& d.cases.stream().noneMatch(x -> x.type == CaseType.EXCHANGE && k.deviceId.equals(x.deviceId))) {
+				out.add(task("replace-" + k.id, (k.closedOn == null ? asOf : k.closedOn).plusDays(2), 1, "사후 처리",
+					"수리 불가 기기 교체 발송 " + k.serial,
+					"수리할 수 없다는 결과가 왔습니다. 같은 기종 재고로 교체 기기를 보내세요(기기 화면의 \"교체 발송\").",
+					"devices", null, k.id.toString(), null));
+			}
 			if (k.status != CaseStatus.OPEN) {
 				continue;
 			}

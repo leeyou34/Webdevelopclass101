@@ -4,8 +4,10 @@ import java.time.LocalDate;
 import java.time.YearMonth;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -82,6 +84,12 @@ public class OpsChatService {
 			return serial(owner, sm.group(1).toUpperCase(Locale.ROOT));
 		}
 		boolean howTo = has(q, "절차", "어떻게", "방법", "순서", "하나요", "해야돼", "해야해", "해야하");
+		if (has(q, "직영", "리리코스") && (howTo || has(q, "입금", "청구", "계산서"))) {
+			return channelGuide();
+		}
+		if (has(q, "미입금", "입금안", "입금대기", "입금전", "안낸", "입금을안", "입금기다")) {
+			return waitingPayments(owner);
+		}
 		if (has(q, "미확인", "입금자")) {
 			return unmatchedDeposits(owner);
 		}
@@ -99,6 +107,9 @@ public class OpsChatService {
 		}
 		if (has(q, "재고")) {
 			return stock(owner);
+		}
+		if (has(q, "수익", "이익", "마진", "벌었", "남았")) {
+			return performance(owner, raw, q, asOf);
 		}
 		if (has(q, "가격", "단가", "얼마", "금액표", "가격표", "vat")) {
 			return prices();
@@ -163,14 +174,16 @@ public class OpsChatService {
 			.filter(i -> i.type == InvoiceType.HQ && i.status == InvoiceStatus.ISSUED).toList();
 		long unmatched = deposits.findByOwnerIdOrderByDepositedOnDescCreatedAtDesc(owner).stream()
 			.filter(d -> d.requestId == null).count();
-		long waitingPay = requests.findByOwnerIdAndStatus(owner, RequestStatus.APPLIED).size();
+		long waitingPay = requests.findByOwnerIdAndStatus(owner, RequestStatus.APPLIED).stream()
+			.filter(r -> r.personalAmount > 0).count();
 		StringBuilder sb = new StringBuilder();
 		if (open.isEmpty()) {
 			sb.append("본사 앞 미수금은 없습니다.");
 		} else {
 			long total = open.stream().mapToLong(i -> i.amount).sum();
 			sb.append("본사 앞 미수금은 ").append(open.size()).append("건, ").append(PrinterService.won(total))
-				.append("(VAT 별도)입니다.\n");
+				.append("(VAT 별도, 받을 돈은 VAT 포함 ").append(PrinterService.won(Pricing.withVat(total)))
+				.append(")입니다.\n");
 			for (Invoice i : open) {
 				LocalDate due = i.issuedOn.plusDays(PrinterService.OVERDUE_DAYS);
 				sb.append("• 발행 ").append(i.issuedOn).append(" · ").append(PrinterService.won(i.amount)).append(" · ")
@@ -184,6 +197,32 @@ public class OpsChatService {
 		sb.append(" 있습니다.");
 		return reply(sb.toString().trim(), List.of(new ChatLink("계산서 화면", "/ops/orders"),
 			new ChatLink("입금 대조 화면", "/ops/deposits")), List.of("미확인 입금", "계산서 일정"));
+	}
+
+	private ChatReply waitingPayments(UUID owner) {
+		Map<UUID, String> names = new HashMap<>();
+		shops.findByOwnerIdOrderByCodeAsc(owner).forEach(x -> names.put(x.id, x.name));
+		List<OrderRequest> list = requests.findByOwnerIdAndStatus(owner, RequestStatus.APPLIED).stream()
+			.filter(r -> r.personalAmount > 0).toList();
+		if (list.isEmpty()) {
+			return reply("입금을 기다리는 신청이 없습니다.", List.of(new ChatLink("입금 대조 화면", "/ops/deposits")),
+				List.of("미확인 입금", "오늘 할 일"));
+		}
+		StringBuilder sb = new StringBuilder("아직 입금이 확인되지 않은 신청이 " + list.size() + "건입니다(받을 돈은 VAT 포함).\n");
+		list.stream().limit(10).forEach(r -> sb.append("• ").append(names.getOrDefault(r.shopId, "")).append(' ')
+			.append(r.applicantName).append(" · ").append(PrinterService.won(Pricing.withVat(r.personalAmount))).append('\n'));
+		sb.append("마감일까지 입금되지 않으면 마감 때 자동 취소됩니다.");
+		return reply(sb.toString(), List.of(new ChatLink("입금 대조 화면", "/ops/deposits"),
+			new ChatLink("신청 화면", "/ops/orders")), List.of("미확인 입금", "신청 마감 언제야?"));
+	}
+
+	private ChatReply channelGuide() {
+		return reply("""
+			영업장 구분별 대금 처리입니다(공급가액, VAT 별도).
+			• 방판 직영 영업소: 개인 입금이 없습니다. 신청을 넣으면 바로 "입금 확인" 상태가 되고, 대금(안드로이드 143,000 / iOS 173,000)은 다음 달 본사 앞 계산서로 청구합니다.
+			• 리리코스 지사: 개인이 안드로이드 54,000 / iOS 64,000을 VAT 포함(59,400 / 70,400)으로 입금하고, 나머지(89,000 / 109,000)는 본사 앞 계산서로 청구합니다.
+			• 방판 특약점: 개인이 143,000(VAT 포함 157,300)을 입금하고, iOS는 차액 30,000을 본사 앞 계산서로 청구합니다.""",
+			List.of(new ChatLink("영업장 화면", "/ops/shops")), List.of("가격표", "계산서 일정"));
 	}
 
 	private ChatReply unmatchedDeposits(UUID owner) {

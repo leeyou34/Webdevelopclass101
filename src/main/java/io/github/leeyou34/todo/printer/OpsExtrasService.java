@@ -178,7 +178,7 @@ public class OpsExtrasService {
 			candidates = new ArrayList<>(narrowed);
 		}
 		if (candidates.size() != 1) {
-			d.note = candidates.isEmpty() ? "맞는 신청 없음" : "후보 " + candidates.size() + "건, 직접 확인 필요";
+			d.note = candidates.isEmpty() ? hint(owner, who) : "후보 " + candidates.size() + "건, 직접 확인 필요";
 			return false;
 		}
 		OrderRequest r = candidates.get(0);
@@ -187,6 +187,25 @@ public class OpsExtrasService {
 		d.matchedOn = LocalDate.now();
 		d.note = "자동 확인";
 		return true;
+	}
+
+	/** 금액이 맞는 신청이 없을 때, 이름이 같은 신청을 찾아 왜 못 맞췄는지 알려 줍니다. */
+	private String hint(UUID owner, String who) {
+		for (OrderRequest r : requests.findByOwnerIdOrderByCreatedAtAsc(owner)) {
+			if (r.personalAmount == 0 || !who.contains(norm(r.applicantName))) {
+				continue;
+			}
+			if (r.status == RequestStatus.APPLIED) {
+				return "금액 다름: " + r.applicantName + " 신청은 " + PrinterService.won(Pricing.withVat(r.personalAmount))
+					+ "(VAT 포함)";
+			}
+		}
+		for (OrderRequest r : requests.findByOwnerIdOrderByCreatedAtAsc(owner)) {
+			if (r.personalAmount > 0 && who.contains(norm(r.applicantName)) && r.paidAmount > 0) {
+				return "이미 입금 확인된 신청(" + r.applicantName + ") — 중복 입금인지 확인";
+			}
+		}
+		return "맞는 신청 없음";
 	}
 
 	private static Deposit parse(UUID owner, String line, LocalDate fallback) {

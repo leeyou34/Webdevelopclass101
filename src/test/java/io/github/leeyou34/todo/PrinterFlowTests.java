@@ -303,6 +303,99 @@ class PrinterFlowTests {
 		assertThat(str(call("/printer/chat", "{\"message\":\"날씨 어때\"}"), "$.answer")).contains("연결하지 못했습니다");
 	}
 
+	@Test
+	void directShopRequestsSkipThePaymentStepAndSurviveTheClose() throws Exception {
+		String direct = id(call("/printer/shops", shopJson("D01", "중앙(영)", "DIRECT")));
+		String cycle = id(call("/printer/cycles", "{\"month\":\"2017-08\",\"closesOn\":\"2017-08-07\"}"));
+		String r = id(call("/printer/requests", requestJson(cycle, direct, "직영 영업소", 1, 1)));
+		// 개인 입금이 없으므로 등록하자마자 입금 확인 상태이고, 입금 할 일에도 잡히지 않음
+		assertThat(field(get("/printer/requests?cycleId=" + cycle), r, "status")).isEqualTo("PAID");
+		String tasks = get("/printer/tasks?asOf=2017-08-03");
+		assertThat((List<?>) JsonPath.read(tasks, "$.tasks[?(@.title =~ /.*입금 확인.*/)]")).isEmpty();
+		call("/printer/requests/" + r + "/payment", "{}"); // 예전 화면처럼 0원 입금 확인을 눌러도 문제없음
+		call("/printer/cycles/" + cycle + "/close", "{\"date\":\"2017-08-08\"}");
+		assertThat(field(get("/printer/requests?cycleId=" + cycle), r, "status")).isEqualTo("PAID");
+		String confirmed = call("/printer/cycles/" + cycle + "/confirm", "{}");
+		assertThat((List<?>) JsonPath.read(confirmed, "$")).hasSize(1);
+	}
+
+	@Test
+	void unrepairableDevicesGetAReplacement() throws Exception {
+		String shop = id(call("/printer/shops", shopJson("A01", "한빛(방)", "SPECIALTY")));
+		String cycle = id(call("/printer/cycles", "{\"month\":\"2017-08\"}"));
+		String r = id(call("/printer/requests", requestJson(cycle, shop, "김0수", 1, 0)));
+		call("/printer/requests/" + r + "/payment", "{}");
+		call("/printer/cycles/" + cycle + "/close", "{}");
+		call("/printer/cycles/" + cycle + "/confirm", "{}");
+		String po = id(call("/printer/cycles/" + cycle + "/purchase-orders", "{\"bufferAndroid\":1}"));
+		call("/printer/purchase-orders/" + po + "/receipts", "{\"serials\":[\"AMR7OKA17080001\",\"AMR7OKA17080002\"]}");
+		call("/printer/requests/" + r + "/assign", "{\"serials\":[\"AMR7OKA17080001\"]}");
+		call("/printer/requests/" + r + "/ship", "{\"trackingNo\":\"1\"}");
+		call("/printer/requests/" + r + "/deliver", "{\"date\":\"2017-08-28\"}");
+
+		String as = id(call("/printer/devices/AMR7OKA17080001/repair", "{\"reason\":\"인쇄 불량\",\"date\":\"2017-09-04\"}"));
+		call("/printer/cases/" + as + "/repair-result", "{\"repaired\":false,\"date\":\"2017-09-11\"}");
+		// 수리 불가 → 교체 발송 할 일이 생기고, 폐기된 기기 시리얼로 교체를 보낼 수 있음
+		String tasks = get("/printer/tasks?asOf=2017-09-12");
+		assertThat((List<?>) JsonPath.read(tasks, "$.tasks[?(@.title == '수리 불가 기기 교체 발송 AMR7OKA17080001')]")).hasSize(1);
+		String ex = call("/printer/devices/AMR7OKA17080001/exchange", "{\"date\":\"2017-09-12\"}");
+		assertThat(str(ex, "$.status")).isEqualTo("CLOSED");
+		assertThat(str(ex, "$.newSerial")).isEqualTo("AMR7OKA17080002");
+		assertThat(str(get("/printer/devices/lookup?serial=AMR7OKA17080002"), "$.device.status")).isEqualTo("DELIVERED");
+		tasks = get("/printer/tasks?asOf=2017-09-13");
+		assertThat((List<?>) JsonPath.read(tasks, "$.tasks[?(@.category == '사후 처리')]")).isEmpty();
+		// 두 번은 안 됨
+		call("/printer/devices/AMR7OKA17080001/exchange", "{}", status().isConflict());
+	}
+
+	@Test
+	void depositHintsExplainWhyALineDidNotMatch() throws Exception {
+		String shop = id(call("/printer/shops", shopJson("A01", "한빛(방)", "SPECIALTY")));
+		String cycle = id(call("/printer/cycles", "{\"month\":\"2017-08\"}"));
+		call("/printer/requests", requestJson(cycle, shop, "서0윤", 2, 0));
+		call("/printer/deposits/import", "{\"text\":\"2017-08-03 한빛서0윤 157,300\"}");
+		assertThat(str(get("/printer/deposits"), "$[0].note")).contains("금액 다름").contains("314,600");
+	}
+
+	@Test
+	void chatbotRoutesChannelAndPaymentQuestions() throws Exception {
+		call("/printer/demo", "");
+		assertThat(str(call("/printer/chat", "{\"message\":\"직영 영업소는 입금 어떻게 해?\"}"), "$.answer"))
+			.contains("개인 입금이 없습니다");
+		assertThat(str(call("/printer/chat", "{\"message\":\"입금 안 한 사람\"}"), "$.answer")).contains("입금");
+		assertThat(str(call("/printer/chat", "{\"message\":\"수익 얼마 남았어\"}"), "$.answer")).contains("수익")
+			.doesNotContain("가격표");
+	}
+
+	@Autowired
+	io.github.leeyou34.todo.config.EnumColumnFix enumColumnFix;
+
+	@Autowired
+	javax.sql.DataSource dataSource;
+
+	@Test
+	void enumColumnsAcceptNewValuesOnOldDatabases() throws Exception {
+		var jdbc = new org.springframework.jdbc.core.JdbcTemplate(dataSource);
+		// 시작할 때 이미 정리되어 enum 칸이 남아 있지 않음
+		Integer left = jdbc.queryForObject(
+			"SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = 'PUBLIC' AND DATA_TYPE = 'ENUM'",
+			Integer.class);
+		assertThat(left).isZero();
+		// 예전 DB처럼 값이 둘뿐인 enum 칸을 만들면 새 값은 들어가지 않다가, 정리 후에는 들어감
+		jdbc.execute("CREATE TABLE QA_LEGACY_SHOP (ID INT PRIMARY KEY, SHOP_TYPE ENUM('SPECIALTY','DIRECT'))");
+		jdbc.execute("CREATE TABLE QA_LEGACY_CHECK (ID INT PRIMARY KEY, KIND VARCHAR(20) CHECK (KIND IN ('A','B')))");
+		jdbc.update("INSERT INTO QA_LEGACY_SHOP VALUES (1, 'DIRECT')");
+		org.assertj.core.api.Assertions.assertThatThrownBy(() -> jdbc.update("INSERT INTO QA_LEGACY_SHOP VALUES (2, 'LIRICOS')"));
+		org.assertj.core.api.Assertions.assertThatThrownBy(() -> jdbc.update("INSERT INTO QA_LEGACY_CHECK VALUES (1, 'C')"));
+		assertThat(enumColumnFix.fix()).isGreaterThanOrEqualTo(2);
+		jdbc.update("INSERT INTO QA_LEGACY_SHOP VALUES (2, 'LIRICOS')");
+		jdbc.update("INSERT INTO QA_LEGACY_CHECK VALUES (1, 'C')");
+		assertThat(jdbc.queryForObject("SELECT SHOP_TYPE FROM QA_LEGACY_SHOP WHERE ID = 1", String.class)).isEqualTo("DIRECT");
+		assertThat(enumColumnFix.fix()).isZero();
+		jdbc.execute("DROP TABLE QA_LEGACY_SHOP");
+		jdbc.execute("DROP TABLE QA_LEGACY_CHECK");
+	}
+
 	// ------------------------------------------------------------------ helpers
 
 	private String login() throws Exception {
